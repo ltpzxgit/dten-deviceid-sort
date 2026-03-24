@@ -3,48 +3,78 @@ import pandas as pd
 import re
 from io import BytesIO
 
-st.set_page_config(page_title="LDCMID Extractor", layout="wide")
+st.set_page_config(page_title="LDCMID + RequestID Extractor", layout="wide")
 
-st.title("📱 LDCMID → DeviceID Extractor")
+st.title("🔗 LDCMID + RequestID Matcher")
 
-# Regex หา LDCMID
+# Regex
+DATETIME_ID_REGEX = r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ([a-f0-9\-]{36})'
 LDCMID_REGEX = r'LDCMID=([A-Za-z0-9\-]+)'
+REQUEST_ID_REGEX = r'Request ID:\s*([a-f0-9\-]{36})'
+
+def extract_correlation_id(text):
+    match = re.search(DATETIME_ID_REGEX, text)
+    return match.group(1) if match else None
 
 def extract_ldcmid(text):
-    if pd.isna(text):
-        return []
-    return re.findall(LDCMID_REGEX, str(text))
+    match = re.search(LDCMID_REGEX, text)
+    return match.group(1) if match else None
 
-# Upload file
+def extract_request_id(text):
+    match = re.search(REQUEST_ID_REGEX, text)
+    return match.group(1) if match else None
+
 uploaded_file = st.file_uploader("📥 Upload Excel / CSV", type=["xlsx", "csv"])
 
 if uploaded_file:
-    # อ่านไฟล์
+    # Read file
     if uploaded_file.name.endswith(".csv"):
         df = pd.read_csv(uploaded_file)
     else:
         df = pd.read_excel(uploaded_file)
 
-    st.write("📊 Preview Data", df.head())
+    st.write("📊 Preview", df.head())
 
-    all_device_ids = []
+    log_map = {}
 
-    # Loop ทุก column ทุก row
+    # 🔥 Loop ทุก cell
     for col in df.columns:
         for val in df[col]:
-            ids = extract_ldcmid(val)
-            all_device_ids.extend(ids)
+            if pd.isna(val):
+                continue
 
-    # ลบค่าว่าง + ซ้ำ
-    device_ids = list(set(all_device_ids))
+            text = str(val)
 
-    # เรียงค่า
-    device_ids.sort()
+            corr_id = extract_correlation_id(text)
+            if not corr_id:
+                continue
 
-    # แปลงเป็น DataFrame
-    result_df = pd.DataFrame({"deviceid": device_ids})
+            if corr_id not in log_map:
+                log_map[corr_id] = {"deviceid": None, "request_id": None}
 
-    st.success(f"✅ เจอทั้งหมด {len(device_ids)} device IDs")
+            ldcmid = extract_ldcmid(text)
+            if ldcmid:
+                log_map[corr_id]["deviceid"] = ldcmid
+
+            req_id = extract_request_id(text)
+            if req_id:
+                log_map[corr_id]["request_id"] = req_id
+
+    # 🔥 แปลงเป็น DataFrame
+    result = []
+    for k, v in log_map.items():
+        result.append({
+            "correlation_id": k,
+            "deviceid": v["deviceid"],
+            "request_id": v["request_id"]
+        })
+
+    result_df = pd.DataFrame(result)
+
+    # เอาเฉพาะที่มีค่า
+    result_df = result_df.dropna(subset=["deviceid", "request_id"])
+
+    st.success(f"✅ Match ได้ {len(result_df)} records")
 
     st.dataframe(result_df)
 
@@ -56,6 +86,6 @@ if uploaded_file:
     st.download_button(
         label="📥 Download Excel",
         data=output,
-        file_name="deviceid_output.xlsx",
+        file_name="ldcmid_requestid_matched.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
