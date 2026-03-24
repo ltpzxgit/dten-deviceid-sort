@@ -3,14 +3,16 @@ import pandas as pd
 import re
 from io import BytesIO
 
-st.set_page_config(page_title="LDCMID Multi Extractor", layout="wide")
+st.set_page_config(page_title="LDCMID Full Extractor", layout="wide")
 
-st.title("📱 LDCMID Multi + RequestID Matcher")
+st.title("🚀 LDCMID Full Extractor (Carrier + ProStatus + Latest Date)")
 
 # Regex
 DATETIME_ID_REGEX = r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ([a-f0-9\-]{36})'
 LDCMID_REGEX = r'LDCMID=([A-Za-z0-9\-]+)'
 REQUEST_ID_REGEX = r'Request ID:\s*([a-f0-9\-]{36})'
+PROSTATUS_REGEX = r'ProStatus=([A-Za-z0-9_]+)'
+PRODATE_REGEX = r'ProDate=([\d\-:\s]+)'
 
 def extract_corr_id(text):
     m = re.search(DATETIME_ID_REGEX, text)
@@ -23,10 +25,25 @@ def extract_request_id(text):
     m = re.search(REQUEST_ID_REGEX, text)
     return m.group(1) if m else None
 
+def extract_prostatus(text):
+    m = re.search(PROSTATUS_REGEX, text)
+    return m.group(1) if m else None
+
+def extract_prodate(text):
+    m = re.search(PRODATE_REGEX, text)
+    return m.group(1) if m else None
+
+def get_carrier(deviceid):
+    if deviceid.startswith(("A", "Z")):
+        return "AIS"
+    elif deviceid == "" or pd.isna(deviceid):
+        return "-"
+    else:
+        return "TRUE"
+
 uploaded_file = st.file_uploader("📥 Upload Excel / CSV", type=["xlsx", "csv"])
 
 if uploaded_file:
-    # Read file
     if uploaded_file.name.endswith(".csv"):
         df = pd.read_csv(uploaded_file)
     else:
@@ -36,7 +53,6 @@ if uploaded_file:
 
     log_map = {}
 
-    # 🔥 Loop ทุก cell
     for col in df.columns:
         for val in df[col]:
             if pd.isna(val):
@@ -51,38 +67,57 @@ if uploaded_file:
             if corr_id not in log_map:
                 log_map[corr_id] = {
                     "deviceids": [],
-                    "request_id": None
+                    "request_id": None,
+                    "prostatus": None,
+                    "prodate": None
                 }
 
-            # ดึงหลาย device
+            # Device
             ldcmids = extract_ldcmids(text)
             if ldcmids:
                 log_map[corr_id]["deviceids"].extend(ldcmids)
 
-            # ดึง request id
+            # Request ID
             req_id = extract_request_id(text)
             if req_id:
                 log_map[corr_id]["request_id"] = req_id
 
-    # 🔥 flatten + match
+            # ProStatus
+            ps = extract_prostatus(text)
+            if ps:
+                log_map[corr_id]["prostatus"] = ps
+
+            # ProDate
+            pd_val = extract_prodate(text)
+            if pd_val:
+                log_map[corr_id]["prodate"] = pd_val
+
+    # 🔥 flatten
     rows = []
     for v in log_map.values():
         if v["deviceids"] and v["request_id"]:
             for d in v["deviceids"]:
                 rows.append({
                     "deviceid": d,
-                    "request_id": v["request_id"]
+                    "request_id": v["request_id"],
+                    "ProStatus": v["prostatus"],
+                    "ProDate": v["prodate"]
                 })
 
     result_df = pd.DataFrame(rows)
 
-    # ลบซ้ำ
+    # clean
     result_df = result_df.drop_duplicates()
 
-    # sort
-    result_df = result_df.sort_values(by="deviceid").reset_index(drop=True)
+    # 🔥 Carrier
+    result_df["Carrier"] = result_df["deviceid"].apply(get_carrier)
 
-    # 🔥 ใส่ No.
+    # 🔥 convert date + sort ใหม่สุดบน
+    result_df["ProDate"] = pd.to_datetime(result_df["ProDate"], errors="coerce")
+    result_df = result_df.sort_values(by="ProDate", ascending=False)
+
+    # 🔥 reset + No.
+    result_df = result_df.reset_index(drop=True)
     result_df.insert(0, "No.", result_df.index + 1)
 
     st.success(f"✅ ได้ทั้งหมด {len(result_df)} rows")
@@ -97,6 +132,6 @@ if uploaded_file:
     st.download_button(
         label="📥 Download Excel",
         data=output,
-        file_name="ldcmid_multi_matched.xlsx",
+        file_name="ldcmid_full_output.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
