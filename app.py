@@ -5,7 +5,7 @@ from io import BytesIO
 
 st.set_page_config(page_title="LDCMID + RequestID Extractor", layout="wide")
 
-st.title("🔗 LDCMID + RequestID Matcher")
+st.title("🔗 LDCMID + RequestID Matcher (Clean)")
 
 # Regex
 DATETIME_ID_REGEX = r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ([a-f0-9\-]{36})'
@@ -37,7 +37,7 @@ if uploaded_file:
 
     log_map = {}
 
-    # 🔥 Loop ทุก cell
+    # Loop ทุก cell
     for col in df.columns:
         for val in df[col]:
             if pd.isna(val):
@@ -60,19 +60,20 @@ if uploaded_file:
             if req_id:
                 log_map[corr_id]["request_id"] = req_id
 
-    # 🔥 แปลงเป็น DataFrame
-    result = []
-    for k, v in log_map.items():
-        result.append({
-            "correlation_id": k,
+    # 🔥 เอาเฉพาะค่าที่ match แล้ว
+    result = [
+        {
             "deviceid": v["deviceid"],
             "request_id": v["request_id"]
-        })
+        }
+        for v in log_map.values()
+        if v["deviceid"] and v["request_id"]
+    ]
 
     result_df = pd.DataFrame(result)
 
-    # เอาเฉพาะที่มีค่า
-    result_df = result_df.dropna(subset=["deviceid", "request_id"])
+    # sort ให้ดู clean
+    result_df = result_df.sort_values(by="deviceid")
 
     st.success(f"✅ Match ได้ {len(result_df)} records")
 
@@ -86,6 +87,6 @@ if uploaded_file:
     st.download_button(
         label="📥 Download Excel",
         data=output,
-        file_name="ldcmid_requestid_matched.xlsx",
+        file_name="ldcmid_requestid_clean.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
