@@ -119,6 +119,6 @@ if uploaded_file:
     st.download_button(
         label="📥 Download Excel",
         data=output,
-        file_name="ldcmid_log_order.xlsx",
+        file_name="dtem-summary.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
