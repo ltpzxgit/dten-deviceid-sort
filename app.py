@@ -119,6 +119,6 @@ if uploaded_file:
     st.download_button(
         label="📥 Download Excel",
         data=output,
-        file_name="dtem-summary.xlsx",
+        file_name="dten-summary.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
