@@ -107,7 +107,7 @@ if uploaded_file:
     result_df = result_df.reset_index(drop=True)
     result_df.insert(0, "No.", result_df.index + 1)
 
-    st.success(f"✅ ได้ทั้งหมด {len(result_df)} rows")
+    st.success(f"✅ Extracted {len(result_df)} records")
 
     st.dataframe(result_df)
 
