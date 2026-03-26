@@ -3,9 +3,9 @@ import pandas as pd
 import re
 from io import BytesIO
 
-st.set_page_config(page_title="LDCMID Log Order Tool", layout="wide")
+st.set_page_config(page_title="ITOSE - DTEN", layout="wide")
 
-st.title("📊 LDCMID Extractor (Log Order)")
+st.title("DTEN Linkage")
 
 # Regex
 DATETIME_ID_REGEX = r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ([a-f0-9\-]{36})'
